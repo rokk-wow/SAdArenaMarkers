@@ -217,7 +217,10 @@ end
 --[[============================================================================
     SAdCore - Simple Addon Core
 ==============================================================================]]
-local SADCORE_MAJOR, SADCORE_MINOR = "SAdCore-1", 15
+
+-- SAdCore Version
+local SADCORE_MAJOR, SADCORE_MINOR = "SAdCore-1", 16
+
 local SAdCore, oldminor = LibStub:NewLibrary(SADCORE_MAJOR, SADCORE_MINOR)
 if not SAdCore then
     return
@@ -307,7 +310,6 @@ do -- Initialize
         self.sadCore = self.sadCore or {}
         self.sadCore.panels = self.sadCore.panels or {}
         self.sadCore.panelOrder = self.sadCore.panelOrder or {}
-        self.sadCore.version = SADCORE_MAJOR:match("%d+") .. "." .. SADCORE_MINOR
         self.apiVersion = select(4, GetBuildInfo())
 
         local clientLocale = GetLocale()
@@ -2044,11 +2046,7 @@ do -- Utility Functions
     function addon:_ExportSettings()
         callHook(self, "BeforeExportSettings")
 
-        local exportData = {
-            addon = self.addonName,
-            version = tostring(self.sadCore.version),
-            settings = self.savedVars
-        }
+        local exportData = self.savedVars
 
         local LibSerialize = self.LibSerialize
         local LibCompress = self.LibCompress
@@ -2127,50 +2125,23 @@ do -- Utility Functions
 
         self:Debug("Data is a table, checking contents...")
 
-        local keys = {}
-        for k, v in pairs(data) do
-            table.insert(keys, tostring(k) .. "=" .. tostring(v))
-        end
-        self:Debug("Data keys: " .. table.concat(keys, ", "))
-
-        self:Debug("Import: - addon: " .. tostring(data.addon) .. ", version: " .. tostring(data.version))
-        self:Debug("Loaded: - addon: " .. tostring(self.addonName) .. ", version: " ..tostring(self.sadCore.version))
-
-        if data.addon ~= self.addonName then
-            self:Error(self:L("core_importWrongAddon") .. ": " .. tostring(data.addon) .. " (expected: " ..
-                           tostring(self.addonName) .. ")")
-            self:Debug("Addon name mismatch: '" .. tostring(data.addon) .. "' != '" .. tostring(self.addonName) .. "'")
+        if type(data) ~= "table" then
+            self:Error(self:L("core_importInvalidData"))
+            self:Debug("data is not a table. Type: " .. type(data))
             callHook(self, "AfterImportSettings", false)
             return false
         end
-
-        self:Debug("Addon name check passed")
-
-        if tostring(data.version) ~= tostring(self.sadCore.version) then
-            self:Info(self:L("core_importAddonVersionMismatch") .. " " .. self:L("core_installed") .. ": " ..
-                          tostring(self.sadCore.version) .. ", " .. self:L("core_importString") .. ": " ..
-                          tostring(data.version) .. ". " .. self:L("core_dataMismatchWarning"))
-        end
-
-        if not data.settings or type(data.settings) ~= "table" then
-            self:Error(self:L("importInvalidSettings"))
-            self:Debug("data.settings is not a table. Type: " .. type(data.settings))
-            callHook(self, "AfterImportSettings", false)
-            return false
-        end
-
-        local importedSettings = data.settings
 
         self:Debug("Clearing current settings and importing...")
         for key in pairs(self.savedVars) do
             self.savedVars[key] = nil
         end
 
-        for key, value in pairs(importedSettings) do
+        for key, value in pairs(data) do
             self.savedVars[key] = value
         end
 
-        self:info(self:L("core_importSuccess"))
+        self:Info(self:L("core_importSuccess"))
         self:_RefreshSettingsPanels()
 
         callHook(self, "AfterImportSettings", true)
@@ -2300,7 +2271,6 @@ do -- Localization
 
     SAdCore.prototype.locale.enEN = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Close",
         core_debuggingHeader = "Debugging",
         core_profile = "Profile",
@@ -2318,12 +2288,7 @@ do -- Localization
         core_importDecodeFailed = "Decode failed.",
         core_importDeserializeFailed = "Deserialize failed.",
         core_importInvalidData = "Invalid data structure.",
-        core_importWrongAddon = "Imported settings are for a different addon",
-        core_importAddonVersionMismatch = "Addon version mismatch.",
         core_importSuccess = "Settings imported successfully.",
-        core_installed = "Installed",
-        core_importString = "Import String",
-        core_dataMismatchWarning = "There may be data compatibility issues.",
         core_tagline = "Simple Addons—Bare minimum addons for bare minimum brains.",
         core_authorTitle = "Author",
         core_authorName = "Press CTRL + C to Copy",
@@ -2340,7 +2305,6 @@ do -- Localization
     -- Spanish
     SAdCore.prototype.locale.esES = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Cerrar",
         core_debuggingHeader = "Depuración",
         core_profile = "Perfil",
@@ -2358,12 +2322,7 @@ do -- Localization
         core_importDecodeFailed = "Error al decodificar.",
         core_importDeserializeFailed = "Error al deserializar.",
         core_importInvalidData = "Estructura de datos inválida.",
-        core_importWrongAddon = "La configuración importada es para un addon diferente",
-        core_importAddonVersionMismatch = "La versión del addon no coincide.",
         core_importSuccess = "Configuración importada exitosamente.",
-        core_installed = "Instalado",
-        core_importString = "Cadena de Importación",
-        core_dataMismatchWarning = "Puede haber problemas de compatibilidad de datos.",
         core_tagline = "Simple Addons—Addons mínimos para mentes mínimas.",
         core_authorTitle = "Autor",
         core_authorName = "Presiona CTRL + C para Copiar",
@@ -2382,7 +2341,6 @@ do -- Localization
     -- Portuguese
     SAdCore.prototype.locale.ptBR = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Fechar",
         core_debuggingHeader = "Depuração",
         core_profile = "Perfil",
@@ -2400,12 +2358,7 @@ do -- Localization
         core_importDecodeFailed = "Falha na decodificação.",
         core_importDeserializeFailed = "Falha na desserialização.",
         core_importInvalidData = "Estrutura de dados inválida.",
-        core_importWrongAddon = "As configurações importadas são para um addon diferente",
-        core_importAddonVersionMismatch = "Incompatibilidade de versão do addon.",
         core_importSuccess = "Configurações importadas com sucesso.",
-        core_installed = "Instalado",
-        core_importString = "String de Importação",
-        core_dataMismatchWarning = "Pode haver problemas de compatibilidade de dados.",
         core_tagline = "Simple Addons—Addons mínimos para mentes mínimas.",
         core_authorTitle = "Autor",
         core_authorName = "Pressione CTRL + C para Copiar",
@@ -2422,7 +2375,6 @@ do -- Localization
     -- French
     SAdCore.prototype.locale.frFR = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Fermer",
         core_debuggingHeader = "Débogage",
         core_profile = "Profil",
@@ -2440,12 +2392,7 @@ do -- Localization
         core_importDecodeFailed = "Échec du décodage.",
         core_importDeserializeFailed = "Échec de la désérialisation.",
         core_importInvalidData = "Structure de données invalide.",
-        core_importWrongAddon = "Les paramètres importés sont pour un addon différent",
-        core_importAddonVersionMismatch = "Incompatibilité de version de l'addon.",
         core_importSuccess = "Paramètres importés avec succès.",
-        core_installed = "Installé",
-        core_importString = "Chaîne d'Importation",
-        core_dataMismatchWarning = "Il peut y avoir des problèmes de compatibilité des données.",
         core_tagline = "Simple Addons—Addons minimaux pour esprits minimaux.",
         core_authorTitle = "Auteur",
         core_authorName = "Appuyez sur CTRL + C pour Copier",
@@ -2457,7 +2404,6 @@ do -- Localization
     -- German
     SAdCore.prototype.locale.deDE = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Schließen",
         core_debuggingHeader = "Debugging",
         core_profile = "Profil",
@@ -2475,12 +2421,7 @@ do -- Localization
         core_importDecodeFailed = "Dekodierung fehlgeschlagen.",
         core_importDeserializeFailed = "Deserialisierung fehlgeschlagen.",
         core_importInvalidData = "Ungültige Datenstruktur.",
-        core_importWrongAddon = "Die importierten Einstellungen sind für ein anderes Addon",
-        core_importAddonVersionMismatch = "Addon-Versionskonflikt.",
         core_importSuccess = "Einstellungen erfolgreich importiert.",
-        core_installed = "Installiert",
-        core_importString = "Import-Zeichenfolge",
-        core_dataMismatchWarning = "Es können Datenkompatibilitätsprobleme auftreten.",
         core_tagline = "Simple Addons—Minimale Addons für minimale Köpfe.",
         core_authorTitle = "Autor",
         core_authorName = "Drücken Sie STRG + C zum Kopieren",
@@ -2492,7 +2433,6 @@ do -- Localization
     -- Russian
     SAdCore.prototype.locale.ruRU = {
         core_SAdCore = "SAdCore",
-        core_versionPrefix = "v",
         core_close = "Закрыть",
         core_debuggingHeader = "Дебаггинг",
         core_profile = "Профиль",
@@ -2510,12 +2450,7 @@ do -- Localization
         core_importDecodeFailed = "Ошибка декодирования.",
         core_importDeserializeFailed = "Ошибка десериализации.",
         core_importInvalidData = "Неверная структура данных.",
-        core_importWrongAddon = "Импортированные настройки предназначены для другого аддона",
-        core_importAddonVersionMismatch = "Несовпадение версий аддона.",
         core_importSuccess = "Настройки успешно импортированы.",
-        core_installed = "Установлено",
-        core_importString = "Строка импорта",
-        core_dataMismatchWarning = "Возможны проблемы совместимости данных.",
         core_tagline = "Simple Addons—Минимальные аддоны для минимальных умов.",
         core_authorTitle = "Автор",
         core_authorName = "Нажмите CTRL + C для копирования",

@@ -7,7 +7,6 @@ addon.sadCore.savedVarsPerCharName = "MyAddon_Settings_Char"
 addon.sadCore.compartmentFuncName = "MyAddon_Compartment_Func"
 
 function addon:Initialize()
-    self.sadCore.version = "1.0"
     self.author = "Rôkk-Wyrmrest Accord"
 
     -- Example - Add Settings to Main Settings Panel

@@ -67,7 +67,6 @@ addon.settings.healerMarkers = {
 }
 
 function addon:Initialize()
-    self.sadCore.version = "1.1"
     self.author = "Rôkk-Wyrmrest Accord"
 
     local markerOptions = {}

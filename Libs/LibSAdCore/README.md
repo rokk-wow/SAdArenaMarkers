@@ -69,7 +69,6 @@ SAddons are:
    addon.sadCore.compartmentFuncName = "MyAddon_Compartment_Func"
    
    function addon:Initialize()
-       self.sadCore.version = "1.0"
        self.author = "Your Name"
        
        -- Example - Add Settings to Main Settings Panel
@@ -138,7 +137,6 @@ This example shows all available control types using the same naming convention 
 
 ```lua
 function addon:Initialize()
-    self.sadCore.version = "1.0"
     self.author = "Your Name"
     
     -- Main Settings Panel
@@ -445,7 +443,6 @@ You can register additional commands as **parameters** to the main slash command
 **Example:**
 ```lua
 function addon:Initialize()
-    self.sadCore.version = "1.0"
     self.author = "Your Name"
     
     -- Configure your settings panels here
@@ -481,7 +478,6 @@ Register WoW events with `self:RegisterEvent(eventName, callback)`:
 
 ```lua
 function addon:Initialize()
-    self.sadCore.version = "1.0"
     self.author = "Your Name"
     
     -- Configure your settings panels here
