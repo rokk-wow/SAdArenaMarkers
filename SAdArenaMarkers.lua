@@ -22,6 +22,7 @@ addon.settings.defaultArenaMarkerSize = 90
 addon.settings.defaultArenaMarkerVerticalOffset = -20
 addon.settings.defaultFriendlyMarkerSize = 150
 addon.settings.defaultFriendlyMarkerVerticalOffset = -20
+addon.settings.defaultFriendlyCustomNameSize = 22
 addon.settings.batchSize = 3
 addon.settings.batchInterval = .03
 addon.settings.nameplateQueue = {}
@@ -169,6 +170,15 @@ function addon:Initialize()
                 type = "checkbox",
                 name = "showFriendlyHealthBars",
                 default = true,
+                onValueChange = function() addon:RefreshAllNameplates() end
+            },
+            {
+                type = "slider",
+                name = "friendlyCustomNameSize",
+                default = addon.settings.defaultFriendlyCustomNameSize,
+                min = 8,
+                max = 40,
+                step = 1,
                 onValueChange = function() addon:RefreshAllNameplates() end
             },
             {
@@ -702,6 +712,8 @@ end
 do -- Create UI Elements
     function addon:CreateCustomNameText(nameplate, markerFrame)
         if nameplate.CustomNameText then
+            local fontSize = self:GetValue("friendlyMarkers", "friendlyCustomNameSize") or self.settings.defaultFriendlyCustomNameSize
+            nameplate.CustomNameText:SetFont("Fonts\\ARIALN.TTF", fontSize, "OUTLINE")
             nameplate.CustomNameText:ClearAllPoints()
             if markerFrame then
                 nameplate.CustomNameText:SetPoint("TOP", markerFrame, "BOTTOM", 0, -5)
@@ -714,10 +726,10 @@ do -- Create UI Elements
             return nameplate.CustomNameText
         end
         
-        local anchorFrame = markerFrame or nameplate
-        local nameText = anchorFrame:CreateFontString(nil, "OVERLAY")
+        local nameText = nameplate:CreateFontString(nil, "OVERLAY")
+        local fontSize = self:GetValue("friendlyMarkers", "friendlyCustomNameSize") or self.settings.defaultFriendlyCustomNameSize
 
-        nameText:SetFont("Fonts\\ARIALN.TTF", 16, "OUTLINE")
+        nameText:SetFont("Fonts\\ARIALN.TTF", fontSize, "OUTLINE")
         nameText:SetJustifyH("CENTER")
         
         if markerFrame then
