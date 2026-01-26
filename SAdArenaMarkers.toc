@@ -1,0 +1,13 @@
+## Interface: 120000, 120001
+## Title: SAdArenaMarkers
+## Author: Rôkk-Wyrmrest Accord
+## Version: 1.0
+## SavedVariables: SAdArenaMarkers_Settings_Global
+## SavedVariablesPerCharacter: SAdArenaMarkers_Settings_Char
+## AddonCompartmentFunc: SAdArenaMarkers_Compartment_Func
+## IconTexture: Interface\Icons\boss_odunrunes_green
+
+Libs\LibSAdCore\LibSAdCore.lua
+
+SAdArenaMarkers.lua
+Localization.lua
