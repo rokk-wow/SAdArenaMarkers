@@ -191,7 +191,7 @@ function addon:Initialize()
             {
                 type = "dropdown",
                 name = "arenaMarkerTexture",
-                default = "numbers",
+                default = "none",
                 options = arenaMarkerOptions,
                 onValueChange = function() addon:RefreshAllNameplates() end
             },
