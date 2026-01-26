@@ -1646,7 +1646,7 @@ do -- Controls
         local inputBoxControls = {}
         if dialogOptions.controls then
             for _, controlConfig in ipairs(dialogOptions.controls) do
-                local control, newYOffset = self:AddControl(content, yOffset, "dialog", controlConfig)
+                local control, newYOffset = self:_AddControl(content, yOffset, "dialog", controlConfig)
                 if controlConfig.type == "inputBox" and controlConfig.highlightText and control then
                     table.insert(inputBoxControls, control)
                 end
