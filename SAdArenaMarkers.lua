@@ -259,7 +259,9 @@ function addon:Initialize()
     })
    
     self:RegisterEvent("PLAYER_ENTERING_WORLD", function(event, isInitialLogin, isReloadingUI)
-        self:EnableFriendlyPlayers()
+        C_Timer.After(0.5, function()
+            self:CvarUpdate("nameplateSize")
+        end)
     end)
 
     self:RegisterEvent("CVAR_UPDATE", function(event, cvarName)
@@ -288,6 +290,22 @@ function addon:Initialize()
             self:RefreshAllNameplates()
         end
     end)
+end
+
+function addon:AfterCreateSettingsPanel(panel)
+    if panel.panelKey == "friendlyMarkers" then
+        panel:Hide()
+        panel:HookScript("OnShow", function()
+            self:CheckFriendlyNameplatesSetting()
+        end)
+    end
+end
+
+function addon:CheckFriendlyNameplatesSetting()
+    local showFriendlyPlayers = GetCVar("nameplateShowFriendlyPlayers")
+    if showFriendlyPlayers ~= "1" then
+        addon:Info("Friendly Nameplates are disabled. Friendly Nameplates must be enabled to see custom markers.")
+    end
 end
 
 function addon:OnZoneChange(currentZone)
@@ -647,19 +665,6 @@ do -- Additional functions
         end
     end
     
-    function addon:EnableFriendlyPlayers()
-        local showFriendlyPlayers = GetCVar("nameplateShowFriendlyPlayers")
-            
-        C_Timer.After(0.5, function()
-            if showFriendlyPlayers ~= "1" then
-                addon:CombatSafe(function()
-                    SetCVar("nameplateShowFriendlyPlayers", "1")
-                end)
-            end
-            self:CvarUpdate("nameplateSize")
-        end)
-    end
-
     function addon:GetArenaUnitForNameplate(nameplate)
         for i = 1, 3 do
             local arenaNameplate = C_NamePlate.GetNamePlateForUnit("arena" .. i)
