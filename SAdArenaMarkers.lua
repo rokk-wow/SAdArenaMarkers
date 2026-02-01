@@ -7,6 +7,7 @@ addon.sadCore.savedVarsPerCharName = "SAdArenaMarkers_Settings_Char"
 addon.sadCore.compartmentFuncName = "SAdArenaMarkers_Compartment_Func"
 
 addon.settings = {}
+addon.unitSpecs = {}
 addon.settings.iconSize = 40
 addon.settings.highlightSize = 55
 addon.settings.borderSize = 64
@@ -73,6 +74,7 @@ function addon:Initialize()
     local markerOptions = {}
     table.insert(markerOptions, { value = "none", label = "none" })
     table.insert(markerOptions, { value = "classIcon", label = "markerStyleClassIcon", icon="UI-HUD-UnitFrame-Player-Portrait-ClassIcon-Monk" })
+    table.insert(markerOptions, { value = "specIcon", label = "markerStyleSpecIcon", icon="GarrMission_ClassIcon-Monk-Mistweaver" })
     
     local markerCount = 0
     for _ in pairs(self.settings.markers) do markerCount = markerCount + 1 end
@@ -188,6 +190,12 @@ function addon:Initialize()
                 options = healerMarkerOptions,
                 onValueChange = function() addon:RefreshAllNameplates() end
             },
+            {
+                type = "checkbox",
+                name = "partyHighlightTarget",
+                default = true,
+                onValueChange = function() addon:RefreshAllNameplates() end
+            },
         }
     })
 
@@ -229,6 +237,16 @@ function addon:Initialize()
                 default = "none",
                 options = healerMarkerOptions,
                 onValueChange = function() addon:RefreshAllNameplates() end
+            },
+            {
+                type = "checkbox",
+                name = "arenaHighlightTarget",
+                default = true,
+                onValueChange = function() addon:RefreshAllNameplates() end
+            },
+            {
+                type = "description",
+                name = "arena123required"
             },
         }
     })
@@ -290,7 +308,19 @@ function addon:Initialize()
             self:RefreshAllNameplates()
         end
     end)
+
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", function(event)
+        self:RefreshAllNameplates()
+    end)
 end
+
+addon.sadCore.releaseNotes = {
+    version = "1.4",
+    notes = {
+        "v1_4_1_specIcon",
+        "v1_4_2_highlightTarget",
+    }
+}
 
 function addon:AfterCreateSettingsPanel(panel)
     if panel.panelKey == "friendlyMarkers" then
@@ -313,10 +343,51 @@ function addon:OnZoneChange(currentZone)
 end
 
 function addon:RefreshAllNameplates()
-    local nameplates = C_NamePlate.GetNamePlates()
+    local units = { "party1", "party2", "arena1", "arena2", "arena3" }
+    for _, unit in ipairs(units) do
+        if self:SecureCall(UnitExists, unit) then
+            local specID = self:GetSpecIDForUnit(unit)
+            if specID then
+                local _, specName, _, icon = self:SecureCall(GetSpecializationInfoByID, specID)
+                self.unitSpecs[unit] = {
+                    specID = specID,
+                    specName = specName,
+                    icon = icon
+                }
+            else
+                self.unitSpecs[unit] = nil
+            end
+        else
+            self.unitSpecs[unit] = nil
+        end
+    end
+    
+    local nameplates = self:SecureCall(C_NamePlate.GetNamePlates)
     for _, nameplate in ipairs(nameplates) do
         self:HandleNameplateEvent(nameplate)
     end
+end
+
+function addon:GetSpecIDForUnit(unit)
+    if string.match(unit, "^arena%d+$") then
+        local arenaIndex = tonumber(string.match(unit, "%d+"))
+        local specID = self:SecureCall(GetArenaOpponentSpec, arenaIndex)
+        return specID
+    end
+    
+    local raidIndex = self:SecureCall(UnitInRaid, unit)
+    if raidIndex then
+        local _, _, classID = self:SecureCall(UnitClass, unit)
+        if classID then
+            local specIndex = self:SecureCall(GetSpecialization, false, false, raidIndex)
+            if specIndex and specIndex > 0 then
+                local specID = self:SecureCall(GetSpecializationInfoForClassID, classID, specIndex)
+                return specID
+            end
+        end
+    end
+    
+    return nil
 end
 
 do -- Entry point for individual nameplates
@@ -421,7 +492,8 @@ do -- Logic to show individual markers
 
     function addon:ShowFriendlyMarker(nameplate, unit)
         local healerMarkerIcon = self:GetHealerMarkerIcon(unit, "friendlyMarkers", "friendlyHealerIcon")
-        local friendlyClassIcon = self:GetFriendlyClassIcon()
+        local markerTexture = self:GetValue("friendlyMarkers", "markerTexture")
+        local friendlyClassIcon = (markerTexture == "classIcon" or markerTexture == "specIcon")
         local friendlyMarkerIcon = self:GetFriendlyMarkerIcon()
         
         if healerMarkerIcon then
@@ -474,6 +546,16 @@ do -- Show Individual Icon Frames
         arenaFrame:SetScale(iconScale)
         arenaFrame:ClearAllPoints()
         arenaFrame:SetPoint("BOTTOM", nameplate, "BOTTOM", 0, verticalOffset)
+        
+        local unit = nameplate.UnitFrame and nameplate.UnitFrame.unit
+        local highlightTarget = self:GetValue("arenaMarkers", "arenaHighlightTarget")
+        if highlightTarget and unit and UnitIsUnit(unit, "target") then
+            arenaFrame.glow:SetVertexColor(0.973, 0.788, 0.020, 0.7)
+            arenaFrame.glow:Show()
+        else
+            arenaFrame.glow:Hide()
+        end
+        
         arenaFrame:Show()
     end
     
@@ -540,9 +622,25 @@ do -- Show Individual Icon Frames
         local markerWidthValue = self:GetValue("friendlyMarkers", "markerWidth")
         local markerWidth = 1.0 + (markerWidthValue * 0.15)
         local iconFrame = self:CreateClassIcon(nameplate)
-
-        iconFrame.icon:SetTexture(self.settings.classIconPath)
-        iconFrame.icon:SetTexCoord(unpack(CLASS_ICON_TCOORDS[class]))
+        local markerTexture = self:GetValue("friendlyMarkers", "markerTexture")
+        local specData = nil
+        
+        if markerTexture == "specIcon" then
+            for _, partyUnit in ipairs({"party1", "party2"}) do
+                if UnitIsUnit(unit, partyUnit) and self.unitSpecs[partyUnit] then
+                    specData = self.unitSpecs[partyUnit]
+                    break
+                end
+            end
+        end
+        
+        if specData and specData.icon then
+            iconFrame.icon:SetTexture(specData.icon)
+            iconFrame.icon:SetTexCoord(0, 1, 0, 1)
+        else
+            iconFrame.icon:SetTexture(self.settings.classIconPath)
+            iconFrame.icon:SetTexCoord(unpack(CLASS_ICON_TCOORDS[class]))
+        end
         iconFrame:SetSize(self.settings.iconSize * markerWidth, self.settings.iconSize)
         iconFrame.icon:SetSize(self.settings.iconSize * markerWidth, self.settings.iconSize)
         iconFrame.mask:SetSize(self.settings.iconSize * markerWidth, self.settings.iconSize)
@@ -552,6 +650,15 @@ do -- Show Individual Icon Frames
         iconFrame:SetScale(iconScale)
         iconFrame:ClearAllPoints()
         iconFrame:SetPoint("BOTTOM", nameplate, "BOTTOM", 0, verticalOffset)
+        
+        local highlightTarget = self:GetValue("friendlyMarkers", "partyHighlightTarget")
+        if highlightTarget and UnitIsUnit(unit, "target") then
+            iconFrame.glow:SetVertexColor(0.973, 0.788, 0.020, 0.8)
+            iconFrame.glow:Show()
+        else
+            iconFrame.glow:Hide()
+        end
+        
         iconFrame:Show()
     end
     
@@ -589,6 +696,18 @@ do -- Show Individual Icon Frames
         arrowFrame:SetScale(iconScale)
         arrowFrame:ClearAllPoints()
         arrowFrame:SetPoint("BOTTOM", nameplate, "BOTTOM", 0, verticalOffset)
+        
+        local highlightTarget = self:GetValue("friendlyMarkers", "partyHighlightTarget")
+        if highlightTarget and UnitIsUnit(unit, "target") then
+            arrowFrame.glow:SetAtlas(styleInfo.atlas)
+            arrowFrame.glow:SetRotation(styleInfo.rotation)
+            arrowFrame.glow:SetDesaturated(true)
+            arrowFrame.glow:SetVertexColor(0.973, 0.788, 0.020, 0.7)
+            arrowFrame.glow:Show()
+        else
+            arrowFrame.glow:Hide()
+        end
+        
         arrowFrame:Show()
     end
 
@@ -757,6 +876,7 @@ do -- Create UI Elements
             local h = height
             nameplate.FriendlyClassArrow:SetSize(h, w)
             nameplate.FriendlyClassArrow.icon:SetSize(w, h)
+            nameplate.FriendlyClassArrow.glow:SetSize(w * 1.5, h * 1.5)
             return nameplate.FriendlyClassArrow
         end
         
@@ -769,7 +889,15 @@ do -- Create UI Elements
         arrowFrame:SetIgnoreParentAlpha(true)
         arrowFrame:SetSize(h, w)
         arrowFrame:SetFrameStrata("HIGH")
-        arrowFrame:SetPoint("CENTER", nameplate, "CENTER")        
+        arrowFrame:SetPoint("CENTER", nameplate, "CENTER")
+        
+        arrowFrame.glow = arrowFrame:CreateTexture(nil, "BACKGROUND")
+        arrowFrame.glow:SetSize(w * 1.5, h * 1.5)
+        arrowFrame.glow:SetPoint("CENTER", arrowFrame, "CENTER")
+        arrowFrame.glow:SetBlendMode("ADD")
+        arrowFrame.glow:SetDesaturated(true)
+        arrowFrame.glow:Hide()
+        
         arrowFrame.icon = arrowFrame:CreateTexture(nil, "BORDER")
         arrowFrame.icon:SetSize(w, h)
         arrowFrame.icon:SetDesaturated(false)
@@ -792,7 +920,15 @@ do -- Create UI Elements
         iconFrame:SetIgnoreParentAlpha(true)
         iconFrame:SetSize(self.settings.iconSize, self.settings.iconSize)
         iconFrame:SetFrameStrata("HIGH")
-        iconFrame:SetPoint("BOTTOM", nameplate, "BOTTOM", 0, 0)        
+        iconFrame:SetPoint("BOTTOM", nameplate, "BOTTOM", 0, 0)
+        
+        iconFrame.glow = iconFrame:CreateTexture(nil, "BACKGROUND")
+        iconFrame.glow:SetTexture("Interface/Masks/CircleMaskScalable")
+        iconFrame.glow:SetSize(self.settings.iconSize * 1.4, self.settings.iconSize * 1.4)
+        iconFrame.glow:SetPoint("CENTER", iconFrame)
+        iconFrame.glow:SetBlendMode("ADD")
+        iconFrame.glow:Hide()
+        
         iconFrame.icon = iconFrame:CreateTexture(nil, "BORDER")
         iconFrame.icon:SetSize(self.settings.iconSize, self.settings.iconSize)
         iconFrame.icon:SetAllPoints(iconFrame)        
@@ -815,6 +951,7 @@ do -- Create UI Elements
         if nameplate.ArenaNumberMarker then
             nameplate.ArenaNumberMarker:SetSize(width, height)
             nameplate.ArenaNumberMarker.icon:SetSize(width, height)
+            nameplate.ArenaNumberMarker.glow:SetSize(width * 1.15, height * 1.15)
             return nameplate.ArenaNumberMarker
         end
         
@@ -824,7 +961,15 @@ do -- Create UI Elements
         markerFrame:SetIgnoreParentAlpha(true)
         markerFrame:SetSize(width, height)
         markerFrame:SetFrameStrata("HIGH")
-        markerFrame:SetPoint("CENTER", nameplate, "CENTER")        
+        markerFrame:SetPoint("CENTER", nameplate, "CENTER")
+        
+        markerFrame.glow = markerFrame:CreateTexture(nil, "BACKGROUND")
+        markerFrame.glow:SetTexture("Interface/Masks/CircleMaskScalable")
+        markerFrame.glow:SetSize(width * 1.15, height * 1.15)
+        markerFrame.glow:SetPoint("CENTER", markerFrame, "CENTER")
+        markerFrame.glow:SetBlendMode("ADD")
+        markerFrame.glow:Hide()
+        
         markerFrame.icon = markerFrame:CreateTexture(nil, "OVERLAY")
         markerFrame.icon:SetSize(width, height)
         markerFrame.icon:SetPoint("CENTER", markerFrame, "CENTER")        

@@ -6,8 +6,12 @@
 -- Thank you to all the authors and contributors who make WoW addon iteration and development possible.
 -- LibSAdCore is freely offered forward to any developer who wants to fork, branch, embed or in any way
 -- use this code for further development.
+
 local LIBSTUB_MAJOR, LIBSTUB_MINOR = "LibStub", 2
 local LibStub = _G[LIBSTUB_MAJOR]
+
+-- SAdCore Version
+local SADCORE_MAJOR, SADCORE_MINOR = "SAdCore-1", 20
 
 if not LibStub or LibStub.minor < LIBSTUB_MINOR then
     LibStub = LibStub or {
@@ -218,9 +222,6 @@ end
     SAdCore - Simple Addon Core
 ==============================================================================]]
 
--- SAdCore Version
-local SADCORE_MAJOR, SADCORE_MINOR = "SAdCore-1", 16
-
 local SAdCore, oldminor = LibStub:NewLibrary(SADCORE_MAJOR, SADCORE_MINOR)
 if not SAdCore then
     return
@@ -331,6 +332,11 @@ do -- Initialize
 
         self.localization = self.locale[clientLocale] or self.locale.enEN
 
+        self.sadCore.config = self.sadCore.config or {
+            retryDelay = .1,
+            retryMaxAttempts = 50
+        }
+
         self.sadCore.ui = self.sadCore.ui or {
             spacing = {
                 panelTop = -25,
@@ -406,6 +412,7 @@ do -- Initialize
         self:_InitializeSettingsPanel()
 
         self:_InitializeCombatQueue()
+        self:_InitializeReleaseNotes()
 
         local returnValue = true
         callHook(self, "AfterInitialize", returnValue)
@@ -508,6 +515,19 @@ do -- Registration functions
 
         local returnValue = true
         callHook(self, "AfterRegisterEvent", returnValue)
+        return returnValue
+    end
+
+    function addon:RegisterFrameEvent(eventName, callback)
+        local addonInstance = self
+        eventName, callback = callHook(self, "BeforeRegisterFrameEvent", eventName, callback)
+
+        EventRegistry:RegisterCallback(eventName, function(...)
+            callback(addonInstance, ...)
+        end)
+
+        local returnValue = true
+        callHook(self, "AfterRegisterFrameEvent", returnValue)
         return returnValue
     end
 
@@ -694,6 +714,14 @@ do -- Settings Panels
                         highlightText = true
                     }}
                 })
+            end
+        }, {
+            type = "divider"
+        }, {
+            type = "button",
+            name = "core_showReleaseNotes",
+            onClick = function()
+                self:ShowReleaseNotes()
             end
         }}
 
@@ -1048,7 +1076,6 @@ do -- Controls
                 if option.icon then
                     info.icon = option.icon
                     
-                    -- Get atlas info to respect original dimensions
                     local atlasInfo = C_Texture.GetAtlasInfo(option.icon)
                     if atlasInfo then
                         info.iconInfo = {
@@ -1061,7 +1088,6 @@ do -- Controls
                             tFitDropDownSizeX = false  -- Don't stretch to fit
                         }
                     else
-                        -- Fallback for non-atlas textures (file paths)
                         info.iconInfo = {
                             tCoordLeft = 0,
                             tCoordRight = 1,
@@ -1767,6 +1793,61 @@ end
 
 do -- Utility Functions
 
+    function addon:Retry(func, initialWait)
+        func, initialWait = callHook(self, "BeforeRetry", func, initialWait)
+
+        if type(func) ~= "function" then
+            self:Error(self:L("core_retryRequiresFunction"))
+            callHook(self, "AfterRetry", false)
+            return false
+        end
+
+        local addonInstance = self
+        local retryDelay = self.sadCore.config.retryDelay or 0.1
+        local retryMaxAttempts = self.sadCore.config.retryMaxAttempts or 50
+        local currentAttempt = 0
+
+        local function attemptExecution()
+            currentAttempt = currentAttempt + 1
+            
+            local success, result = pcall(func, addonInstance)
+            
+            if not success then
+                addonInstance:Debug("Retry attempt " .. currentAttempt .. " failed with error: " .. tostring(result))
+                if currentAttempt < retryMaxAttempts then
+                    C_Timer.After(retryDelay, attemptExecution)
+                else
+                    addonInstance:Debug("Retry max attempts (" .. retryMaxAttempts .. ") reached")
+                    callHook(addonInstance, "AfterRetry", false)
+                end
+                return
+            end
+
+            if result == true then
+                addonInstance:Debug("Retry succeeded on attempt " .. currentAttempt)
+                callHook(addonInstance, "AfterRetry", true)
+                return
+            end
+
+            if currentAttempt < retryMaxAttempts then
+                addonInstance:Debug("Retry attempt " .. currentAttempt .. " returned " .. tostring(result) .. ", retrying...")
+                C_Timer.After(retryDelay, attemptExecution)
+            else
+                addonInstance:Debug("Retry max attempts (" .. retryMaxAttempts .. ") reached without success")
+                callHook(addonInstance, "AfterRetry", false)
+            end
+        end
+
+        if initialWait and type(initialWait) == "number" and initialWait > 0 then
+            C_Timer.After(initialWait, attemptExecution)
+        else
+            attemptExecution()
+        end
+
+        callHook(self, "AfterRetry", true)
+        return true
+    end
+
     function addon:GetValue(panel, settingName)
         panel, settingName = callHook(self, "BeforeGetValue", panel, settingName)
 
@@ -1885,6 +1966,24 @@ do -- Utility Functions
                 return defaultValue
             end
         end
+    end
+
+    function addon:SetValue(panel, settingName, value)
+        panel, settingName, value = callHook(self, "BeforeSetValue", panel, settingName, value)
+
+        if not panel or not settingName then
+            callHook(self, "AfterSetValue", false)
+            return false
+        end
+
+        self.savedVars = self.savedVars or {}
+        self.savedVars[panel] = self.savedVars[panel] or {}
+        self.savedVars[panel][settingName] = value
+
+        self:_RefreshSettingsPanels()
+
+        callHook(self, "AfterSetValue", true)
+        return true
     end
 
     function addon:HexToRGB(hex)
@@ -2150,6 +2249,71 @@ do -- Utility Functions
 
 end
 
+do -- Release Notes
+
+    function addon:_InitializeReleaseNotes()
+        callHook(self, "BeforeInitializeReleaseNotes")
+
+        if not self.sadCore.releaseNotes then
+            callHook(self, "AfterInitializeReleaseNotes", false)
+            return false
+        end
+
+        self.savedVarsGlobal.viewedReleaseNotes = self.savedVarsGlobal.viewedReleaseNotes or {}
+
+        local currentVersion = self.sadCore.releaseNotes.version
+        local viewedVersion = self.savedVarsGlobal.viewedReleaseNotes[self.addonName]
+
+        if currentVersion and currentVersion ~= viewedVersion then
+            self:ShowReleaseNotes(true)
+            self.savedVarsGlobal.viewedReleaseNotes[self.addonName] = currentVersion
+        end
+
+        local returnValue = true
+        callHook(self, "AfterInitializeReleaseNotes", returnValue)
+        return returnValue
+    end
+
+    function addon:ShowReleaseNotes(delay)
+        callHook(self, "BeforeShowReleaseNotes")
+
+        if not self.sadCore.releaseNotes then
+            self:Info(self:L("core_noReleaseNotes"))
+            callHook(self, "AfterShowReleaseNotes", false)
+            return false
+        end
+
+        if not self.sadCore.releaseNotes.notes then
+            callHook(self, "AfterShowReleaseNotes", false)
+            return false
+        end
+
+        local function displayNotes()
+            local version = self.sadCore.releaseNotes.version or "Unknown"
+            self:Info(self:L("core_releaseNotesTitle") .. " " .. version)
+            
+            local noteNumber = 1
+            for _, noteKey in ipairs(self.sadCore.releaseNotes.notes) do
+                local localizedNote = self:L(noteKey)
+                self:Info(noteNumber .. ". " .. localizedNote)
+                noteNumber = noteNumber + 1
+            end
+        end
+
+        if delay then
+            C_Timer.After(1, function()
+                displayNotes()
+            end)
+        else
+            displayNotes()
+        end
+
+        local returnValue = true
+        callHook(self, "AfterShowReleaseNotes", returnValue)
+        return returnValue
+    end
+end
+
 do -- Combat Queue System
 
     function addon:_InitializeCombatQueue()
@@ -2208,6 +2372,67 @@ do -- Combat Queue System
 
         callHook(self, "AfterCombatSafe", true)
         return true
+    end
+
+    function addon:SecureCall(func, ...)
+        callHook(self, "BeforeSecureCall", func)
+
+        if type(func) ~= "function" then
+            self:Error(self:L("core_secureCallRequiresFunction"))
+            callHook(self, "AfterSecureCall", false)
+            return false
+        end
+
+        if not self.secretTestFrame then
+            self.secretTestFrame = CreateFrame("EditBox")
+            self.secretTestFrame:Hide()
+        end
+
+        local success, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8, ret9, ret10, ret11, ret12, ret13, ret14, ret15, ret16, ret17, ret18, ret19, ret20 = pcall(func, ...)
+
+        if not success then
+            callHook(self, "AfterSecureCall", nil)
+            return nil
+        end
+
+        local function makeSafe(value)
+            if value == nil then
+                return nil
+            end
+
+            local isSafe = pcall(function()
+                local str = tostring(value)
+                self.secretTestFrame:SetText(str)
+            end)
+
+            self.secretTestFrame:ClearFocus()
+
+            return isSafe and value or false
+        end
+
+        local safeRet1 = makeSafe(ret1)
+        local safeRet2 = makeSafe(ret2)
+        local safeRet3 = makeSafe(ret3)
+        local safeRet4 = makeSafe(ret4)
+        local safeRet5 = makeSafe(ret5)
+        local safeRet6 = makeSafe(ret6)
+        local safeRet7 = makeSafe(ret7)
+        local safeRet8 = makeSafe(ret8)
+        local safeRet9 = makeSafe(ret9)
+        local safeRet10 = makeSafe(ret10)
+        local safeRet11 = makeSafe(ret11)
+        local safeRet12 = makeSafe(ret12)
+        local safeRet13 = makeSafe(ret13)
+        local safeRet14 = makeSafe(ret14)
+        local safeRet15 = makeSafe(ret15)
+        local safeRet16 = makeSafe(ret16)
+        local safeRet17 = makeSafe(ret17)
+        local safeRet18 = makeSafe(ret18)
+        local safeRet19 = makeSafe(ret19)
+        local safeRet20 = makeSafe(ret20)
+
+        callHook(self, "AfterSecureCall", safeRet1, safeRet2, safeRet3, safeRet4, safeRet5, safeRet6, safeRet7, safeRet8, safeRet9, safeRet10, safeRet11, safeRet12, safeRet13, safeRet14, safeRet15, safeRet16, safeRet17, safeRet18, safeRet19, safeRet20)
+        return safeRet1, safeRet2, safeRet3, safeRet4, safeRet5, safeRet6, safeRet7, safeRet8, safeRet9, safeRet10, safeRet11, safeRet12, safeRet13, safeRet14, safeRet15, safeRet16, safeRet17, safeRet18, safeRet19, safeRet20
     end
 
     function addon:_ProcessCombatQueue()
@@ -2299,7 +2524,13 @@ do -- Localization
         core_combatSafeRequiresFunction = "CombatSafe requires a function as parameter",
         core_combatSafeFunctionError = "Combat safe function error",
         core_actionQueuedForCombat = "Action queued for after combat",
-        core_queuedActionFailed = "Combat safe queued action failed"
+        core_queuedActionFailed = "Combat safe queued action failed",
+        core_secureCallRequiresFunction = "SecureCall requires a function as parameter",
+        core_retryRequiresFunction = "Retry requires a function as parameter",
+        core_releaseNotesTitle = "Release Notes for Version",
+        core_noReleaseNotes = "No release notes available.",
+        core_showReleaseNotes = "Release Notes",
+        core_showReleaseNotesTooltip = "Display the latest release notes for this addon.",
     }
 
     -- Spanish
@@ -2333,7 +2564,13 @@ do -- Localization
         core_combatSafeRequiresFunction = "CombatSafe requiere una función como parámetro",
         core_combatSafeFunctionError = "Error en función protegida contra combate",
         core_actionQueuedForCombat = "Acción en cola para después del combate",
-        core_queuedActionFailed = "Acción en cola falló"
+        core_queuedActionFailed = "Acción en cola falló",
+        core_secureCallRequiresFunction = "SecureCall requiere una función como parámetro",
+        core_retryRequiresFunction = "Retry requiere una función como parámetro",
+        core_releaseNotesTitle = "Notas de la Versión",
+        core_noReleaseNotes = "No hay notas de versión disponibles.",
+        core_showReleaseNotes = "Notas de Versión",
+        core_showReleaseNotesTooltip = "Mostrar las últimas notas de versión de este addon.",
     }
 
     SAdCore.prototype.locale.esMX = SAdCore.prototype.locale.esES
@@ -2369,7 +2606,13 @@ do -- Localization
         core_combatSafeRequiresFunction = "CombatSafe requer uma função como parâmetro",
         core_combatSafeFunctionError = "Erro na função protegida contra combate",
         core_actionQueuedForCombat = "Ação enfileirada para depois do combate",
-        core_queuedActionFailed = "Ação enfileirada falhou"
+        core_queuedActionFailed = "Ação enfileirada falhou",
+        core_secureCallRequiresFunction = "SecureCall requer uma função como parâmetro",
+        core_retryRequiresFunction = "Retry requer uma função como parâmetro",
+        core_releaseNotesTitle = "Notas de Versão",
+        core_noReleaseNotes = "Nenhuma nota de versão disponível.",
+        core_showReleaseNotes = "Notas de Versão",
+        core_showReleaseNotesTooltip = "Exibir as últimas notas de versão deste addon.",
     }
 
     -- French
@@ -2398,7 +2641,18 @@ do -- Localization
         core_authorName = "Appuyez sur CTRL + C pour Copier",
         core_errorConfigHelp1 = "Erreur de configuration de SavedVariables détectée.",
         core_errorConfigHelp2 = "Tous les noms de variables doivent contenir le nom de l'addon pour garantir l'unicité entre tous les addons.",
-        core_errorConfigExample = "Exemple de configuration pour l'addon"
+        core_errorConfigExample = "Exemple de configuration pour l'addon",
+        core_cannotOpenInCombat = "Impossible d'ouvrir les paramètres en combat.",
+        core_combatSafeRequiresFunction = "CombatSafe nécessite une fonction comme paramètre",
+        core_combatSafeFunctionError = "Erreur de fonction sécurisée contre le combat",
+        core_actionQueuedForCombat = "Action mise en file d'attente pour après le combat",
+        core_queuedActionFailed = "Action en file d'attente échouée",
+        core_secureCallRequiresFunction = "SecureCall nécessite une fonction comme paramètre",
+        core_retryRequiresFunction = "Retry nécessite une fonction comme paramètre",
+        core_releaseNotesTitle = "Notes de Version pour la Version",
+        core_noReleaseNotes = "Aucune note de version disponible.",
+        core_showReleaseNotes = "Notes de Version",
+        core_showReleaseNotesTooltip = "Afficher les dernières notes de version de cet addon.",
     }
 
     -- German
@@ -2427,7 +2681,18 @@ do -- Localization
         core_authorName = "Drücken Sie STRG + C zum Kopieren",
         core_errorConfigHelp1 = "SavedVariables-Konfigurationsfehler erkannt.",
         core_errorConfigHelp2 = "Alle Variablennamen müssen den Addon-Namen enthalten, um Eindeutigkeit über alle Addons hinweg zu gewährleisten.",
-        core_errorConfigExample = "Beispielkonfiguration für Addon"
+        core_errorConfigExample = "Beispielkonfiguration für Addon",
+        core_cannotOpenInCombat = "Einstellungen können im Kampf nicht geöffnet werden.",
+        core_combatSafeRequiresFunction = "CombatSafe benötigt eine Funktion als Parameter",
+        core_combatSafeFunctionError = "Kampfsichere Funktionsfehler",
+        core_actionQueuedForCombat = "Aktion für nach dem Kampf in Warteschlange gestellt",
+        core_queuedActionFailed = "Warteschlangenaktion fehlgeschlagen",
+        core_secureCallRequiresFunction = "SecureCall benötigt eine Funktion als Parameter",
+        core_retryRequiresFunction = "Retry benötigt eine Funktion als Parameter",
+        core_releaseNotesTitle = "Versionshinweise für Version",
+        core_noReleaseNotes = "Keine Versionshinweise verfügbar.",
+        core_showReleaseNotes = "Versionshinweise",
+        core_showReleaseNotesTooltip = "Zeige die neuesten Versionshinweise für dieses Addon.",
     }
 
     -- Russian
@@ -2456,23 +2721,17 @@ do -- Localization
         core_authorName = "Нажмите CTRL + C для копирования",
         core_errorConfigHelp1 = "Обнаружена ошибка конфигурации SavedVariables.",
         core_errorConfigHelp2 = "Все имена переменных должны содержать имя аддона для обеспечения уникальности среди всех аддонов.",
-        core_errorConfigExample = "Пример конфигурации для аддона"
+        core_errorConfigExample = "Пример конфигурации для аддона",
+        core_cannotOpenInCombat = "Невозможно открыть настройки в бою.",
+        core_combatSafeRequiresFunction = "CombatSafe требует функцию в качестве параметра",
+        core_combatSafeFunctionError = "Ошибка защищенной от боя функции",
+        core_actionQueuedForCombat = "Действие поставлено в очередь после боя",
+        core_queuedActionFailed = "Действие из очереди не выполнено",
+        core_secureCallRequiresFunction = "SecureCall требует функцию в качестве параметра",
+        core_retryRequiresFunction = "Retry требует функцию в качестве параметра",
+        core_releaseNotesTitle = "Примечания к версии",
+        core_noReleaseNotes = "Нет доступных примечаний к версии.",
+        core_showReleaseNotes = "Примечания к версии",
+        core_showReleaseNotesTooltip = "Показать последние примечания к версии для этого аддона.",
     }
-
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
