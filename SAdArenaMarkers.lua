@@ -295,6 +295,15 @@ function addon:Initialize()
         end
     end)
 
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", function(eventTable, eventName, unit)
+        if unit then
+            local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
+            if nameplate then
+                self:HideMarker(nameplate)
+            end
+        end
+    end)
+
     self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS", function(event)
         self:RefreshAllNameplates()
     end)
@@ -472,8 +481,25 @@ do -- Logic to show individual markers
         if isHostilePlayerCharacter and inArena then
             self:ShowArenaMarker(nameplate, unit)
         elseif isFriendlyPlayerCharacter then
+            if inArena or self.currentZone == "battleground" then
+                if not self:IsInPlayerGroup(unit) then return end
+            end
             self:ShowFriendlyMarker(nameplate, unit)
         end
+    end
+
+    function addon:IsInPlayerGroup(unit)
+        for i = 1, 4 do
+            if UnitIsUnit(unit, "party" .. i) then
+                return true
+            end
+        end
+        for i = 1, 40 do
+            if UnitIsUnit(unit, "raid" .. i) then
+                return true
+            end
+        end
+        return false
     end
 
     function addon:ShowArenaMarker(nameplate, unit)
@@ -785,10 +811,20 @@ do -- Additional functions
     end
     
     function addon:GetArenaUnitForNameplate(nameplate)
+        local unitFrame = nameplate and nameplate.UnitFrame
+        local unit = unitFrame and unitFrame.unit
+        if not unit then return nil end
+        
+        local plateName = UnitName(unit)
+        if not plateName then return nil end
+        
         for i = 1, 3 do
-            local arenaNameplate = C_NamePlate.GetNamePlateForUnit("arena" .. i)
-            if arenaNameplate == nameplate then
-                return "arena" .. i
+            local arenaUnit = "arena" .. i
+            if self:SecureCall(UnitExists, arenaUnit) then
+                local arenaName = UnitName(arenaUnit)
+                if arenaName and arenaName == plateName then
+                    return arenaUnit
+                end
             end
         end
         return nil

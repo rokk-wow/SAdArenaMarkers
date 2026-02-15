@@ -72,8 +72,7 @@ SAddons are:
        self.author = "Your Name"
        
        -- Example - Add Settings to Main Settings Panel
-       self.sadCore.panels.main = {
-           title = "exampleTitle",
+       self:AddSettingsPanel("main", {
            controls = {
                {
                    type = "header",
@@ -86,7 +85,7 @@ SAddons are:
                    onValueChange = self.exampleCheckbox
                }
            }
-       }
+       })
        
        -- Example - Add a New Child Settings Panel
        self:AddSettingsPanel("examplePanel", {
@@ -140,84 +139,22 @@ function addon:Initialize()
     self.author = "Your Name"
     
     -- Main Settings Panel
-    self.sadCore.panels.main = {
+    self:AddSettingsPanel("main", {
         controls = {
-            -- Header
             {
                 type = "header",
                 name = "mainHeader"
             },
-            
-            -- Checkbox (persisted)
             {
                 type = "checkbox",
                 name = "mainCheckbox",
                 default = true,
                 onValueChange = self.mainCheckbox
-            },
-            
-            -- Dropdown (persisted)
-            {
-                type = "dropdown",
-                name = "mainDropdown",
-                default = "option2",
-                options = {
-                    {value = "option1", label = "dropdownOption1"},
-                    {value = "option2", label = "dropdownOption2"},
-                    {value = "option3", label = "dropdownOption3"}
-                },
-                onValueChange = self.mainDropdown
-            },
-            
-            -- Slider (persisted)
-            {
-                type = "slider",
-                name = "mainSlider",
-                default = 50,
-                min = 0,
-                max = 100,
-                step = 5,
-                onValueChange = self.mainSlider
-            },
-            
-            -- Color Picker (persisted)
-            {
-                type = "colorPicker",
-                name = "mainColor",
-                default = "#FFFFFF",
-                onValueChange = self.mainColor
-            },
-            
-            -- Input Box with Button
-            {
-                type = "inputBox",
-                name = "mainInput",
-                default = "Enter text",
-                buttonText = "mainInputButton",
-                onClick = self.mainInputButton
-            },
-            
-            -- Button
-            {
-                type = "button",
-                name = "mainButton",
-                onClick = self.mainButton
-            },
-            
-            -- Divider
-            {
-                type = "divider"
-            },
-            
-            -- Description
-            {
-                type = "description",
-                name = "mainDescription"
             }
         }
-    }
+    })
     
-    -- Child Settings Panel
+    -- Child Settings Panel (shows all available control types)
     self:AddSettingsPanel("advancedPanel", {
         title = "advancedTitle",
         controls = {
@@ -230,6 +167,51 @@ function addon:Initialize()
                 name = "advancedCheckbox",
                 default = false,
                 onValueChange = self.advancedCheckbox
+            },
+            {
+                type = "dropdown",
+                name = "advancedDropdown",
+                default = "option2",
+                options = {
+                    {value = "option1", label = "dropdownOption1"},
+                    {value = "option2", label = "dropdownOption2"},
+                    {value = "option3", label = "dropdownOption3"}
+                },
+                onValueChange = self.advancedDropdown
+            },
+            {
+                type = "slider",
+                name = "advancedSlider",
+                default = 50,
+                min = 0,
+                max = 100,
+                step = 5,
+                onValueChange = self.advancedSlider
+            },
+            {
+                type = "colorPicker",
+                name = "advancedColor",
+                default = "#FFFFFF",
+                onValueChange = self.advancedColor
+            },
+            {
+                type = "inputBox",
+                name = "advancedInput",
+                default = "Enter text",
+                buttonText = "advancedInputButton",
+                onClick = self.advancedInputButton
+            },
+            {
+                type = "button",
+                name = "advancedButton",
+                onClick = self.advancedButton
+            },
+            {
+                type = "divider"
+            },
+            {
+                type = "description",
+                name = "advancedDescription"
             }
         }
     })
@@ -240,29 +222,29 @@ function addon:mainCheckbox(isChecked)
     self:Debug("Main checkbox: " .. tostring(isChecked))
 end
 
-function addon:mainDropdown(selectedValue)
+function addon:advancedCheckbox(isChecked)
+    self:Info("Advanced checkbox: " .. tostring(isChecked))
+end
+
+function addon:advancedDropdown(selectedValue)
     self:Info("Dropdown selected: " .. selectedValue)
 end
 
-function addon:mainSlider(value)
+function addon:advancedSlider(value)
     self:Info("Slider value: " .. value)
 end
 
-function addon:mainColor(hexColor)
+function addon:advancedColor(hexColor)
     self:Info("Color changed: " .. hexColor)
 end
 
-function addon:mainInputButton(inputText, editBox)
+function addon:advancedInputButton(inputText, editBox)
     self:Info("Input value: " .. inputText)
     editBox:SetText("")
 end
 
-function addon:mainButton()
+function addon:advancedButton()
     self:Info("Button clicked!")
-end
-
-function addon:advancedCheckbox(isChecked)
-    self:Info("Advanced checkbox: " .. tostring(isChecked))
 end
 
 -- Localization
@@ -272,27 +254,27 @@ addon.locale.enEN = {
     mainHeader = "Main Settings",
     mainCheckbox = "Enable Main Feature",
     mainCheckboxTooltip = "Enable or disable the main feature",
-    mainDropdown = "Select Option",
-    mainDropdownTooltip = "Choose from available options",
-    dropdownOption1 = "Option One",
-    dropdownOption2 = "Option Two",
-    dropdownOption3 = "Option Three",
-    mainSlider = "Adjust Value",
-    mainSliderTooltip = "Set the value between 0 and 100",
-    mainColor = "Choose Color",
-    mainColorTooltip = "Select a color with optional transparency",
-    mainInput = "Enter Text",
-    mainInputTooltip = "Type your text here",
-    mainInputButton = "Apply",
-    mainButton = "Click Me",
-    mainButtonTooltip = "Perform an action",
-    mainDescription = "This is a description that provides additional information to the user.",
     
     -- Advanced panel
     advancedTitle = "Advanced Settings",
     advancedHeader = "Advanced Options",
     advancedCheckbox = "Enable Advanced Mode",
-    advancedCheckboxTooltip = "Enable advanced features"
+    advancedCheckboxTooltip = "Enable advanced features",
+    advancedDropdown = "Select Option",
+    advancedDropdownTooltip = "Choose from available options",
+    dropdownOption1 = "Option One",
+    dropdownOption2 = "Option Two",
+    dropdownOption3 = "Option Three",
+    advancedSlider = "Adjust Value",
+    advancedSliderTooltip = "Set the value between 0 and 100",
+    advancedColor = "Choose Color",
+    advancedColorTooltip = "Select a color with optional transparency",
+    advancedInput = "Enter Text",
+    advancedInputTooltip = "Type your text here",
+    advancedInputButton = "Apply",
+    advancedButton = "Click Me",
+    advancedButtonTooltip = "Perform an action",
+    advancedDescription = "This is a description that provides additional information to the user."
 }
 ```
 
@@ -471,45 +453,24 @@ addon.locale.enEN = {
 
 ## Slash Commands
 
-By default, every addon automatically gets a slash command based on the addon name. For example, if your addon is named `MyAddon`, the slash command `/myaddon` is automatically registered.
-
-**Default behavior:** Typing the slash command alone (e.g., `/myaddon`) opens the addon's settings panel.
-
-### Registering Custom Commands
-
-You can register additional commands as **parameters** to the main slash command using `self:RegisterSlashCommand(command, callback)`. These custom commands are accessed by typing the main slash command followed by the command name.
+Register custom slash commands using `self:RegisterSlashCommand(command, callback)`. Each command becomes its own slash command that accepts parameters.
 
 **Example:**
 ```lua
 function addon:Initialize()
     self.author = "Your Name"
     
-    -- Configure your settings panels here
-    -- ...
-    
-    -- Register slash commands
     self:RegisterSlashCommand("hello", self.HelloCommand)
-    self:RegisterSlashCommand("debug", self.DebugCommand)
 end
 
-function addon:HelloCommand()
-    self:Info("Hello, World!")
-end
-
-function addon:DebugCommand(enabled)
-    if enabled == "on" then
-        self.savedVars.main.enableDebugging = true
-        self:Info("Debugging enabled")
-    end
+function addon:HelloCommand(message, name)
+    self:Info("Hello, " .. (name or "World") .. "!")
 end
 ```
 
 **Usage:**
-- `/myaddon` - Opens the settings panel (default behavior)
-- `/myaddon hello` - Calls the `HelloCommand` function, displays "Hello, World!"
-- `/myaddon debug on` - Calls the `DebugCommand` function with parameter "on"
-
-**Note:** Command names are case-insensitive.
+- `/hello` - Displays "Hello, World!"
+- `/hello john` - Displays "Hello, john!"
 
 ## Event Registration
 
@@ -675,7 +636,7 @@ These are the most commonly used functions available on the `self` object within
 ### Events & Commands
 - **`self:RegisterEvent(eventName, callback)`** - Register a WoW event with a callback function
 - **`self:RegisterFrameEvent(eventName, callback)`** - Register a frame event (EventRegistry callback) with a callback function
-- **`self:RegisterSlashCommand(command, callback)`** - Register a custom slash command as a parameter to the main addon command
+- **`self:RegisterSlashCommand(command, callback)`** - Register a custom slash command (e.g., command="hello" creates /hello)
 
 ### Zone Detection
 - **`self:GetCurrentZone()`** - Returns current zone: "arena", "battleground", "dungeon", "raid", or "world"
