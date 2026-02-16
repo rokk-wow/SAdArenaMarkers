@@ -295,6 +295,15 @@ function addon:Initialize()
         end
     end)
 
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", function(eventTable, eventName, unit)
+        if unit then
+            local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
+            if nameplate then
+                self:HideMarker(nameplate)
+            end
+        end
+    end)
+
     self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS", function(event)
         self:RefreshAllNameplates()
     end)
@@ -786,7 +795,7 @@ do -- Additional functions
     
     function addon:GetArenaUnitForNameplate(nameplate)
         for i = 1, 3 do
-            local arenaNameplate = C_NamePlate.GetNamePlateForUnit("arena" .. i)
+            local arenaNameplate = self:SecureCall(C_NamePlate.GetNamePlateForUnit, "arena" .. i)
             if arenaNameplate == nameplate then
                 return "arena" .. i
             end
